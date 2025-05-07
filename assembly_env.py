@@ -60,6 +60,7 @@ class AssemblyEnv(CRA_Assembly):
 
     def reset(self, obstacles=None):
         self.delete_blocks()
+        self.add_block(Floor(xlim=self.xlim))
         self.graph._max_node = -1
         # self.blocks = {}
         # self._add_support_block()
@@ -88,6 +89,8 @@ class AssemblyEnv(CRA_Assembly):
         return reward_features
     
     def create_block(self, action : Action):
+        #print(self.block_list)
+        #print(action.target_block)
         block1 = self.block_list[action.target_block]
         block2 = block_from_id(action.shape)
         # coordinai = [action.offset_x, 0, action.offset_y]
@@ -123,12 +126,12 @@ class AssemblyEnv(CRA_Assembly):
         new_block = self.create_block(action)
         if self.collision(new_block):
             print("Collision")
-            return None, torch.tensor(0.), True
+            return self.state_feature, torch.tensor(0.), True
         
         self.add_block(new_block)
         if not self.is_stable():
             print("Unstable")
-            return None, torch.tensor(0.), True
+            return self.state_feature, torch.tensor(0.), True
         
         action_feature = render_block_2d(
             new_block, 
@@ -146,7 +149,7 @@ class AssemblyEnv(CRA_Assembly):
             if new_block.contains_2d(target):
                 self.num_targets_reached += 1
         
-        reward = torch.sum(action_feature * self.reward_feature, dim=(-1, -2)).flatten()[0]
+        reward = torch.sum(action_feature * self.reward_feature, dim=(-1, -2)).flatten()[0].item()
         terminated = (len(self.block_list)-1 >= self.max_blocks) | self.num_targets_reached == len(self.task.targets)
         
         return self.state_feature, reward, terminated
@@ -176,6 +179,8 @@ class AssemblyEnv(CRA_Assembly):
                             actions.append(Action(i, target_face, shape.block_id, face, offset_x))
                             
         return actions
+    
+    
     
     def random_action(self, num_block_offsets=1, non_colliding=True, stable=True):
         # non_colliding = True requests an action that is not colliding
