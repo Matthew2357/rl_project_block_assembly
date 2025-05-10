@@ -30,6 +30,15 @@ class Action:
     def __hash__(self):
         return hash((self.target_block, self.target_face, self.shape, self.face, self.offset_x))
     
+    def __eq__(self, other):
+        return isinstance(other, Action) and (
+            self.target_block == other.target_block and
+            self.target_face == other.target_face and
+            self.shape == other.shape and
+            self.face == other.face and
+            np.isclose(self.offset_x, other.offset_x)
+        )
+    
 def gaussian(loc, xlim, zlim, img_size=(512,512), sigma=2):
     x, y = loc
     X, Y = np.meshgrid(np.linspace(*xlim, img_size[0]), np.linspace(zlim[1], zlim[0], img_size[1]))
@@ -37,7 +46,7 @@ def gaussian(loc, xlim, zlim, img_size=(512,512), sigma=2):
 
 class AssemblyEnv(CRA_Assembly):
 
-    def __init__(self, task, max_blocks=10, xlim=(-5, 5), zlim=(0, 10), img_size=(64, 64), mu=0.8, density=1.0):
+    def __init__(self, task, max_blocks=10, xlim=(-5, 5), zlim=(0, 10), img_size=(64, 64), mu=0.8, density=1.0, max_actions=300):
         super().__init__()
         self.task = task
         self.xlim = xlim
@@ -56,6 +65,7 @@ class AssemblyEnv(CRA_Assembly):
         self.reward_feature = self.get_reward_features(sigma=0.5)
 
         self.state_feature = torch.zeros(self.img_size)
+        self.max_actions=max_actions
 
 
     def reset(self, obstacles=None):
@@ -152,7 +162,7 @@ class AssemblyEnv(CRA_Assembly):
         reward = torch.sum(action_feature * self.reward_feature, dim=(-1, -2)).flatten()[0].item()
         terminated = (len(self.block_list)-1 >= self.max_blocks) | self.num_targets_reached == len(self.task.targets)
         
-        return self.state_feature, reward, terminated
+        return self.state_feature, float(reward), terminated
 
     def collision(self, new_block):
         return any(new_block.intersects_2d(b) for b in self.block_list + self.task.obstacles)
@@ -180,7 +190,38 @@ class AssemblyEnv(CRA_Assembly):
                             
         return actions
     
-    
+    def all_actions(self,floor_positions=None, num_block_offsets=1, overlap=0.2):
+        """
+        Generate all conceivable actions, regardless of current block list.
+        This includes combinations for blocks that do not yet exist in the environment.
+        """
+        actions = []
+        floor_positions = floor_positions or self.task.floor_positions
+        # Assume blocks up to max_blocks could exist
+        for target_block in range(self.max_actions):
+            # Use a sample block (e.g., first shape) to simulate possible target faces
+            #
+            #    possible_target_faces = shape1.receiving_faces_2d()
+            possible_target_faces=[0,1,2,3]
+            for target_face in possible_target_faces:
+                for shape in self.task.shapes:
+                    for face in shape.attaching_faces_2d():
+                        # Estimate lengths using average or fixed length (if no real block exists yet)
+                        l1 = shape.face_length_2d(target_face)
+                        l2 = shape.face_length_2d(face)
+                        offset_range = (1 - overlap) * (l1 + l2) / 2
+                        offsets = np.linspace(-offset_range, offset_range, num_block_offsets + 2)[1:-1]
+
+                        for offset_x in offsets+floor_positions:
+                            actions.append(Action(
+                                target_block=target_block,
+                                target_face=target_face,
+                                shape=shape.block_id,
+                                face=face,
+                                offset_x=offset_x
+                            ))
+
+        return actions
     
     def random_action(self, num_block_offsets=1, non_colliding=True, stable=True):
         # non_colliding = True requests an action that is not colliding
