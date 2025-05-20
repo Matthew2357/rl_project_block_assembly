@@ -1,5 +1,6 @@
 """
 Trains a policy using the assembly gym env and Stablebaseline for the RL algorithm
+With added support for obstacles and collision filtering
 """
 
 import argparse
@@ -39,7 +40,7 @@ def main():
 
     for k, v in hyper.items():
         if hasattr(args, k):
-            setattr(args, k, v)        
+            setattr(args, k, v)
         else:
             hyper[k] = v
 
@@ -50,7 +51,7 @@ def main():
         level = logging.DEBUG
         logger.setLevel(level)
         logger.debug("Debug logging is enabled.")
-    
+
 
     logger.info(f"Device used: {args.device}")
 
@@ -68,6 +69,8 @@ def main():
                 task=args.task,
                 render=args.render and args.n_envs == 1,  # only render when 1 env
                 level=level,
+                use_obstacles=args.use_obstacles,  # Pass obstacles flag
+                filter_collisions=args.filter_collisions  # Pass collision filtering flag
             )
             return Monitor(env)
         return _init
@@ -85,13 +88,20 @@ def main():
         logger.info(f"Resuming from {args.resume_model}")
         model = Algo.load(
             args.resume_model,
-            env=env,                       
+            env=env,
             device=args.device,
         )
         # keep original tensorboard path if you want continuity
         #model.set_tensorboard_log(str(run_dir / "tb"))
     else:
+        # Set default policy to "MlpPolicy" if not specified in hyperparameters
+        if "policy" not in hyper:
+            policy = "MlpPolicy"
+        else:
+            policy = hyper.pop("policy")
+
         model = Algo(
+            policy=policy,
             env=env,
             tensorboard_log=str(run_dir / "tb"),
             device=args.device,
@@ -107,7 +117,7 @@ def main():
     else :
         eval_callback = EvalCallback(eval_env, best_model_save_path=run_dir / "best_model", eval_freq=args.save_freq,
                                     log_path=run_dir / "eval_logs", deterministic=True, render=False)
-    
+
     model.learn(total_timesteps=args.timesteps, callback=[chk_callback, eval_callback],progress_bar=args.progress_bar)
 
     model.save(run_dir / "final_model")
@@ -115,7 +125,7 @@ def main():
 
 
 def create_parser():
-    parser = argparse.ArgumentParser(description="Train Rl policy on block-assembly task (SB3)")
+    parser = argparse.ArgumentParser(description="Train RL policy on block-assembly task (SB3)")
     parser.add_argument("--task", choices=["bridge", "tower", "double_bridge"], default="bridge")
     parser.add_argument("--num-stories", type=int, default=2, help="difficulty setting for the chosen task")
     parser.add_argument("--algo", choices=list(ALGOS.keys()), default="maskppo")
@@ -129,6 +139,9 @@ def create_parser():
     parser.add_argument("--config", help="Path to YAML with hyper‑params")
     parser.add_argument("-m", "--resume-model", help="Path to *.zip model to continue training from")
     parser.add_argument("-n", "--n-envs", type=int, default=1, help="Number of environments to run in parallel")
+    # New arguments for obstacles and collision filtering
+    parser.add_argument("--use-obstacles", action="store_true", help="Add obstacles to the environment")
+    parser.add_argument("--filter-collisions", action="store_true", help="Filter out actions that would cause collisions")
     return parser
 
 if __name__ == '__main__':

@@ -12,7 +12,7 @@ def is_stable_rbe(assembly_env, verbose=False):
     res, res_dict = True, None
     try:
         with SuppressInfeasibleWarning():
-            rbe_solve(assembly_env, mu=assembly_env.mu, density=assembly_env.density, penalty=False, verbose=verbose)
+            rbe_solve(assembly_env, mu=assembly_env.mu, density=assembly_env.density, verbose=verbose)
     except (ValueError, IndexError) as e:
         if e.args[0] == "infeasible":
             res, res_dict = False, None
