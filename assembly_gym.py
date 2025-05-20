@@ -19,7 +19,7 @@ MAX_ACTIONS = 300 # Upper limit on the number of possible actions
 
 class BlockAssemblyGym(gym.Env):
 
-    def __init__(self, task, num_block_offsets: int = 1, render = False, level = logging.INFO):
+    def __init__(self, task, num_block_offsets: int = 1, render = False, noise=False, level = logging.INFO):
         super().__init__()
         self.logger = get_logger(__name__)
         self.logger.setLevel(level)
@@ -36,6 +36,8 @@ class BlockAssemblyGym(gym.Env):
         self._actions = [None] * self.max_actions
         self._mask = np.zeros(self.max_actions, dtype=bool)
         self.action_space = gym.spaces.Discrete(self.max_actions)
+
+        self.noise = noise
 
         h, w = self.backend.img_size
         self.observation_space = gym.spaces.Box(0, 1, shape=(h * w * 2,), dtype=np.float32) # Contains placed blocks as image and reward placement as image
@@ -103,7 +105,7 @@ class BlockAssemblyGym(gym.Env):
             return obs, 0.0, True, False, {}
 
         action = self._actions[index]
-        obs, reward, terminated = self.backend.step(action)
+        obs, reward, terminated = self.backend.step(action, self.noise)
         obs = self._get_obs()
         self._refresh_actions()
 

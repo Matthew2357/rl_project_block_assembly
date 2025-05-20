@@ -96,11 +96,15 @@ class AssemblyEnv(CRA_Assembly):
 
         return reward_features
     
-    def create_block(self, action : Action):
+    def create_block(self, action : Action, noise: bool=False):
         block1 = self.block_list[action.target_block]
         block2 = block_from_id(action.shape)
         # coordinai = [action.offset_x, 0, action.offset_y]
-        coordinates = [action.offset_x, 0, 0]
+        if noise:
+            coordinate1 = action.offset_x + np.random.normal()
+        else:
+            coordinate1 = action.offset_x
+        coordinates = [coordinate1, 0, 0]
 
         new_block = align_blocks(block1=block1, face1=action.target_face, block2=block2, face2=action.face, frame1_coordinates=coordinates)
         return new_block
@@ -127,20 +131,20 @@ class AssemblyEnv(CRA_Assembly):
             
         self.compute_interfaces()
 
-    def step(self, action : Action):
+    def step(self, action : Action, noise: bool=False):
         """
         returns: obs, reward, terminated
         """
         # create and add block to environment
-        new_block = self.create_block(action)
+        new_block = self.create_block(action, noise)
         if self.collision(new_block):
             self.logger.debug("Collision")
-            return self.state_feature.clone(), torch.tensor(-0.0), True
+            return self.state_feature.clone(), torch.tensor(0.0), True
         
         self.add_block(new_block)
         if not self.is_stable():
             self.logger.debug("Unstable")
-            return self.state_feature.clone(), torch.tensor(-0.0), True
+            return self.state_feature.clone(), torch.tensor(0.0), True
         
         action_feature = render_block_2d(
             new_block, 

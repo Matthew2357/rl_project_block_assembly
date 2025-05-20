@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from stable_baselines3 import PPO
+from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
@@ -24,6 +25,7 @@ from utils.logger_utils import get_logger
 ALGOS = {
     "maskppo": MaskablePPO,
     "ppo": PPO,
+    "dqn": DQN
 }
 
 def load_hyperparams(path):
@@ -72,12 +74,23 @@ def main():
             return Monitor(env)
         return _init
 
-    env_fns = [make_env(i) for i in range(args.n_envs)]
+    '''env_fns = [make_env(i) for i in range(args.n_envs)]
 
     if args.n_envs == 1:
         env = DummyVecEnv(env_fns)
     else:
-        env = SubprocVecEnv(env_fns, start_method="spawn")
+        env = SubprocVecEnv(env_fns, start_method="spawn")'''
+
+    if args.algo == "dqn":
+        if args.n_envs != 1:
+            raise ValueError("DQN only supports a single environment. Use --n-envs 1.")
+        env = make_env(0)()
+    else:
+        env_fns = [make_env(i) for i in range(args.n_envs)]
+        if args.n_envs == 1:
+            env = DummyVecEnv(env_fns)
+        else:
+            env = SubprocVecEnv(env_fns, start_method="spawn")
 
 
     Algo = ALGOS[args.algo]
@@ -86,21 +99,24 @@ def main():
         model = Algo.load(
             args.resume_model,
             env=env,                       
-            device=args.device,
+            device=args.device
         )
         # keep original tensorboard path if you want continuity
         #model.set_tensorboard_log(str(run_dir / "tb"))
     else:
         model = Algo(
             env=env,
+            buffer_size=30000,
             tensorboard_log=str(run_dir / "tb"),
             device=args.device,
+            policy="MlpPolicy", #adjust since for non-dqn this argument doesn't exist
             verbose=0,
             **{k: v for k, v in hyper.items() if k not in vars(args)}
         )
 
     chk_callback = CheckpointCallback(save_freq=args.save_freq, save_path=run_dir / "checkpoints", name_prefix="rl_model")
-    eval_env = DummyVecEnv([make_env(0)])
+    #eval_env = DummyVecEnv([make_env(0)])
+    eval_env = make_env(0)() if args.algo == "dqn" else DummyVecEnv([make_env(0)])
     if args.algo == "maskppo":
         eval_callback = MaskableEvalCallback(eval_env, best_model_save_path=run_dir / "best_model", eval_freq=args.save_freq,
                                     log_path=run_dir / "eval_logs", deterministic=True, render=False)

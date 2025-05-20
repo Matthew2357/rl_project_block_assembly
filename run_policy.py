@@ -61,6 +61,7 @@ def main():
     # Create environment
     base_env = BlockAssemblyGym(task=args.task,
                                 level=level,
+                                noise = args.noise,
                                 render=args.render)
 
     if args.algo == "maskppo":
@@ -97,7 +98,7 @@ def main():
                 action, _ = model.predict(obs, deterministic=False, action_masks=action_masks)
             else:
                 action, _ = model.predict(obs, deterministic=True)
-
+            
             obs, reward, done, truncated, _info = env.step(action)
             total_reward += reward
             steps += 1
@@ -123,6 +124,7 @@ def parse_args():
     p.add_argument("--model", required=True, help="Path to saved .zip model")
     p.add_argument("--task", choices=["bridge", "tower", "double_bridge"], default="bridge")
     p.add_argument("--num-stories", type=int, default=2)
+    p.add_argument("--noise", action="store_true")
     p.add_argument("--algo", choices=list(ALGOS.keys()), default="maskppo")
     p.add_argument("--device", default="auto")
     p.add_argument("--render", action="store_true", help="Render environment while running")
