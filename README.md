@@ -52,7 +52,7 @@ Train an agent with **Stable‑Baselines3**.  Key CLI flags (run `-h` for all):
 **Train from scratch**
 
 ```bash
-python train.py --task bridge --algo maskppo --timesteps 100000 --progress-bar --config configs/maskppo.yaml  
+python train.py --task bridge --algo maskppo --timesteps 100000 --progress-bar --config configs/maskppo.yaml   --use-obstacles --filter-collisions 
 ```
 
 **Resume training**
@@ -75,7 +75,7 @@ tensorboard --logdir runs
 Roll out a **trained policy** for qualitative inspection.
 
 ```bash
-python run_policy.py --model runs/bridge_maskppo_0506212053/best_model/best_model.zip --task bridge --algo maskppo --render --debug
+python run_policy.py --model runs/bridge_maskppo_0519114352/best_model/best_model.zip --task bridge --algo maskppo --render --debug --use-obstacles --filter-collisions
 ```
 
 Here is an example of a rollout
